@@ -70,6 +70,9 @@ const enTranslations = {
     returningTomorrow: "returning tomorrow",
     returningToday: "returning today",
     noReturns: "No cars returning tomorrow",
+    topVehicles: "Top Vehicles",
+    bookings: "bookings",
+    noVehicles: "No vehicles found",
   },
   fleet: {
     fleetManagement: "Fleet Management",
@@ -482,6 +485,9 @@ const frTranslations = {
     returningTomorrow: "rentrant demain",
     returningToday: "rentrant aujourd'hui",
     noReturns: "Aucun véhicule rentrant demain",
+    topVehicles: "Véhicules les plus populaires",
+    bookings: "réservations",
+    noVehicles: "Aucun véhicule trouvé",
   },
   fleet: {
     fleetManagement: "Gestion de Flotte",

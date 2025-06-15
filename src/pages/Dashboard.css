@@ -464,3 +464,85 @@
 .alert-icon {
   color: var(--warning);
 }
+
+/* Top Vehicles Styles */
+.top-vehicles {
+  background-color: var(--white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.top-vehicles .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-4) var(--spacing-6);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.top-vehicles-list {
+  padding: var(--spacing-4) var(--spacing-6);
+}
+
+.vehicle-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-3) 0;
+  border-bottom: 1px solid var(--gray-100);
+  transition: background-color var(--transition-fast);
+}
+
+.vehicle-item:last-child {
+  border-bottom: none;
+}
+
+.vehicle-item:hover {
+  background-color: var(--gray-50);
+  border-radius: var(--radius-sm);
+  margin: 0 calc(-1 * var(--spacing-2));
+  padding: var(--spacing-3) var(--spacing-2);
+}
+
+.vehicle-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.vehicle-name {
+  font-weight: 600;
+  color: var(--gray-900);
+  font-size: 0.875rem;
+}
+
+.booking-count {
+  font-size: 0.75rem;
+  color: var(--gray-600);
+}
+
+.vehicle-rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background-color: var(--primary-50);
+  border-radius: var(--radius-full);
+}
+
+.vehicle-icon {
+  color: var(--primary);
+}
+
+.no-vehicles {
+  text-align: center;
+  padding: var(--spacing-8) var(--spacing-4);
+  color: var(--gray-500);
+}
+
+.no-vehicles p {
+  margin: 0;
+  font-size: 0.875rem;
+}

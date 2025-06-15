@@ -16,6 +16,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { format, subDays, parseISO } from "date-fns";
 import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
+import { isAdmin } from "../utils/permissionUtils";
 import "./Dashboard.css";
 
 interface KpiData {
@@ -51,8 +53,16 @@ interface CarReturning {
   end_date: string;
 }
 
+interface TopVehicle {
+  id: string;
+  brand: string;
+  model: string;
+  booking_count: number;
+}
+
 export const Dashboard = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [dateFilter, setDateFilter] = useState<
     "today" | "week" | "month" | "custom"
   >("today");
@@ -200,11 +210,19 @@ export const Dashboard = () => {
         console.log("Cars returning today count:", carsReturningCount);
 
         // Fetch total expenses for the current period
-        const { data: currentExpenses, error: expensesError } = await supabase
+        let currentExpensesQuery = supabase
           .from("expenses")
           .select("amount")
           .gte("date", formattedStartDate)
           .lte("date", format(today, "yyyy-MM-dd"));
+
+        // Filter by user_id for non-admin users
+        if (!isAdmin(user) && user?.id) {
+          currentExpensesQuery = currentExpensesQuery.eq("user_id", user.id);
+        }
+
+        const { data: currentExpenses, error: expensesError } =
+          await currentExpensesQuery;
 
         console.log("Expenses query result:", {
           currentExpenses,
@@ -217,12 +235,19 @@ export const Dashboard = () => {
         }
 
         // Fetch previous period expenses for comparison
+        let previousExpensesQuery = supabase
+          .from("expenses")
+          .select("amount")
+          .gte("date", formattedCompareStartDate)
+          .lte("date", format(compareEndDate, "yyyy-MM-dd"));
+
+        // Filter by user_id for non-admin users
+        if (!isAdmin(user) && user?.id) {
+          previousExpensesQuery = previousExpensesQuery.eq("user_id", user.id);
+        }
+
         const { data: previousExpenses, error: previousExpensesError } =
-          await supabase
-            .from("expenses")
-            .select("amount")
-            .gte("date", formattedCompareStartDate)
-            .lte("date", format(compareEndDate, "yyyy-MM-dd"));
+          await previousExpensesQuery;
 
         console.log("Previous expenses query result:", {
           previousExpenses,
@@ -531,6 +556,67 @@ export const Dashboard = () => {
     staleTime: 60 * 1000, // 1 minute
   });
 
+  // Fetch top vehicles based on booking count
+  const { data: topVehicles = [], isLoading: isLoadingTopVehicles } = useQuery<
+    TopVehicle[]
+  >({
+    queryKey: ["topVehicles"],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from("bookings")
+          .select(
+            `
+            vehicles (
+              id,
+              brand,
+              model
+            )
+          `
+          )
+          .not("vehicles", "is", null);
+
+        if (error) throw error;
+
+        // Count bookings per vehicle
+        const vehicleCounts: { [key: string]: TopVehicle } = {};
+
+        data.forEach((booking: any) => {
+          const vehicles = booking.vehicles;
+          if (!vehicles) return;
+
+          // Handle both single vehicle and array of vehicles
+          const vehicleList = Array.isArray(vehicles) ? vehicles : [vehicles];
+
+          vehicleList.forEach((vehicle: any) => {
+            if (!vehicle) return;
+
+            const key = vehicle.id;
+            if (!vehicleCounts[key]) {
+              vehicleCounts[key] = {
+                id: vehicle.id,
+                brand: vehicle.brand,
+                model: vehicle.model,
+                booking_count: 0,
+              };
+            }
+            vehicleCounts[key].booking_count++;
+          });
+        });
+
+        // Convert to array and sort by booking count
+        return Object.values(vehicleCounts)
+          .sort((a, b) => b.booking_count - a.booking_count)
+          .slice(0, 5); // Get top 5 vehicles
+      } catch (error) {
+        console.error("Error fetching top vehicles:", error);
+        toast.error("Failed to load top vehicles");
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   // Helper function to calculate time ago
   const getTimeAgo = (date: Date): string => {
     const now = new Date();
@@ -759,6 +845,44 @@ export const Dashboard = () => {
       </div>
 
       <div className="dashboard-lower-grid">
+        <div className="top-vehicles card">
+          <div className="card-header">
+            <h3>{t("dashboard.topVehicles")}</h3>
+          </div>
+          <div className="top-vehicles-list">
+            {isLoadingTopVehicles ? (
+              Array(5)
+                .fill(0)
+                .map((_, index) => (
+                  <div className="vehicle-item skeleton" key={index}>
+                    <div className="skeleton-text"></div>
+                    <div className="skeleton-text small"></div>
+                  </div>
+                ))
+            ) : topVehicles.length === 0 ? (
+              <div className="no-vehicles">
+                <p>{t("dashboard.noVehicles")}</p>
+              </div>
+            ) : (
+              topVehicles.map((vehicle) => (
+                <div className="vehicle-item" key={vehicle.id}>
+                  <div className="vehicle-info">
+                    <span className="vehicle-name">
+                      {vehicle.brand} {vehicle.model}
+                    </span>
+                    <span className="booking-count">
+                      {vehicle.booking_count} {t("dashboard.bookings")}
+                    </span>
+                  </div>
+                  <div className="vehicle-rank">
+                    <Car size={16} className="vehicle-icon" />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         <div className="weather-widget card">
           <div className="card-header">
             <h3>{t("dashboard.weatherForecast")}</h3>

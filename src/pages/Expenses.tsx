@@ -46,7 +46,7 @@ interface ExpenseFormData {
   user_id: string;
 }
 
-interface ExpenseWithProfile {
+interface SupabaseExpenseResponse {
   id: string;
   amount: number;
   description: string;
@@ -54,11 +54,13 @@ interface ExpenseWithProfile {
   category: string;
   user_id: string;
   created_at: string;
-  profiles: {
-    id: string;
-    name: string;
-    job_title: string;
-  } | null;
+  profiles:
+    | {
+        id: string;
+        name: string;
+        job_title: string;
+      }[]
+    | null;
 }
 
 export const Expenses = () => {
@@ -72,6 +74,8 @@ export const Expenses = () => {
   const [sortField, setSortField] = useState<keyof Expense>("date");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
+  console.log("test first");
+  console.log({ user }, "1");
   // Form state
   const [formData, setFormData] = useState<ExpenseFormData>({
     amount: 0,
@@ -116,10 +120,8 @@ export const Expenses = () => {
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
     queryKey: ["expenses"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("expenses")
-        .select(
-          `
+      let query = supabase.from("expenses").select(
+        `
           id,
           amount,
           description,
@@ -129,8 +131,14 @@ export const Expenses = () => {
           created_at,
           profiles (id, name, job_title)
         `
-        )
-        .order("date", { ascending: false });
+      );
+
+      // Filter by user_id for non-admin users
+      if (!isAdmin(user) && user?.id) {
+        query = query.eq("user_id", user.id);
+      }
+
+      const { data, error } = await query.order("date", { ascending: false });
       console.log({ data, error });
 
       if (error) {
@@ -138,17 +146,22 @@ export const Expenses = () => {
         throw error;
       }
 
-      return data.map((expense: ExpenseWithProfile) => ({
-        id: expense.id,
-        amount: expense.amount,
-        description: expense.description,
-        date: expense.date,
-        category: expense.category,
-        user_id: expense.user_id,
-        user_name: expense.profiles?.name || "Unknown User",
-        user_job_title: expense.profiles?.job_title || "unknown",
-        created_at: expense.created_at,
-      }));
+      return (data as SupabaseExpenseResponse[]).map((expense) => {
+        const profile = Array.isArray(expense.profiles)
+          ? expense.profiles[0]
+          : expense.profiles;
+        return {
+          id: expense.id,
+          amount: expense.amount,
+          description: expense.description,
+          date: expense.date,
+          category: expense.category,
+          user_id: expense.user_id,
+          user_name: profile?.name || "Unknown User",
+          user_job_title: profile?.job_title || "unknown",
+          created_at: expense.created_at,
+        };
+      });
     },
     staleTime: 2 * 60 * 1000,
     enabled: !!user,
