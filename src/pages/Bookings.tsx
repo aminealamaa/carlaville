@@ -8,6 +8,7 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
+  RefreshCw,
 } from "lucide-react";
 import {
   AddBookingModal,
@@ -259,6 +260,8 @@ export const Bookings = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Timer to update the current time every second for more accuracy
   useEffect(() => {
@@ -339,10 +342,12 @@ export const Bookings = () => {
     refetchOnWindowFocus: false,
   });
 
-  // Fetch bookings from database
-  const { data: bookings = [], isLoading } = useQuery<Booking[]>({
-    queryKey: ["bookings"],
-    queryFn: async () => {
+  // Fonction pour récupérer les réservations depuis Supabase
+  const fetchBookings = async () => {
+    try {
+      setIsRefreshing(true);
+      const toastId = toast.loading("Chargement des réservations...");
+
       const { data, error } = await supabase
         .from("bookings")
         .select(
@@ -367,13 +372,18 @@ export const Bookings = () => {
         .order("created_at", { ascending: false });
 
       if (error) {
-        toast.error("Failed to load bookings");
+        toast.dismiss(toastId);
+        toast.error("Échec du chargement des réservations");
         throw error;
       }
 
-      if (!data) return [];
+      if (!data) {
+        toast.dismiss(toastId);
+        setBookings([]);
+        return;
+      }
 
-      return data.map((booking: RawBookingRecord) => {
+      const formattedBookings = data.map((booking: RawBookingRecord) => {
         // Handle nested objects - they could be arrays in the response
         const client = Array.isArray(booking.clients)
           ? booking.clients[0]
@@ -419,11 +429,22 @@ export const Bookings = () => {
           getTimeInfo: createGetTimeInfoFn(booking.end_date),
         };
       });
-    },
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    refetchOnWindowFocus: false,
-  });
+
+      setBookings(formattedBookings);
+      toast.dismiss(toastId);
+      toast.success("Réservations mises à jour avec succès");
+    } catch (error) {
+      console.error("Error fetching bookings:", error);
+      toast.error("Erreur lors du chargement des réservations");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Charger les réservations au montage du composant
+  useEffect(() => {
+    fetchBookings();
+  }, []);
 
   // Create or update booking mutation
   const { mutate: saveBooking, isPending: isSaving } = useMutation({
@@ -501,7 +522,7 @@ export const Bookings = () => {
     },
     onSuccess: () => {
       // Refetch the bookings data
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      fetchBookings();
 
       // Close the modal and reset selection
       setIsModalOpen(false);
@@ -753,6 +774,14 @@ export const Bookings = () => {
         <h1>{t("bookings.bookingsManagement")}</h1>
         <div className="bookings-actions">
           <button
+            className="btn btn-secondary mr-2"
+            onClick={fetchBookings}
+            disabled={isRefreshing}
+          >
+            <RefreshCw size={16} className={isRefreshing ? "spinning" : ""} />
+            <span>{isRefreshing ? "Chargement..." : "Actualiser"}</span>
+          </button>
+          <button
             className="btn btn-primary"
             onClick={() => setIsModalOpen(true)}
           >
@@ -805,7 +834,7 @@ export const Bookings = () => {
         </div>
       </div>
 
-      {isLoading ? (
+      {isRefreshing ? (
         <div className="loading-indicator">
           <div className="spinner"></div>
           <p>{t("bookings.loadingBookings")}</p>
