@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, Plus, MapPin, Mail, Phone } from "lucide-react";
+import { Search, Plus, MapPin, Mail, Phone, RefreshCw } from "lucide-react";
 import {
   AddClientModal,
   ClientFormData,
@@ -35,125 +35,132 @@ export const Clients = () => {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
+  const [clients, setClients] = useState<Client[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // Fetch clients from Supabase
-  const { data: clients = [], isLoading } = useQuery({
-    queryKey: ["clients"],
-    queryFn: async () => {
-      try {
-        // Show loading state while fetching
-        console.log("Fetching clients data...");
+  // Fonction pour récupérer les clients depuis Supabase
+  const fetchClients = async () => {
+    try {
+      setIsLoading(true);
+      console.log("Fetching clients data...");
 
-        // Ensure we have a valid session before proceeding
-        const isAuthenticated = await ensureAuthenticated();
-        if (!isAuthenticated) {
-          console.error("Authentication failed, cannot fetch clients");
-          toast.error(
-            "Authentication error. Please try refreshing the page or login again."
-          );
-          return [];
-        }
-
-        // First get all clients
-        const { data: clientsData, error: clientsError } = await supabase
-          .from("clients")
-          .select("*");
-
-        console.log({ data: clientsData, error: clientsError });
-
-        if (clientsError) {
-          // Special handling for auth errors
-          if (
-            clientsError.code === "PGRST301" ||
-            clientsError.message.includes("JWT")
-          ) {
-            toast.error("Session expired. Please refresh the page.");
-            return [];
-          }
-
-          throw clientsError;
-        }
-
-        if (!clientsData || clientsData.length === 0) {
-          console.log("No clients found in database");
-          return [];
-        }
-
-        // Then get bookings in a separate query
-        const { data: bookingsData, error: bookingsError } = await supabase
-          .from("bookings")
-          .select("*");
-
-        if (bookingsError) {
-          console.error("Error fetching bookings:", bookingsError);
-          // Continue with client data even if bookings fail
-        }
-
-        // Transform Supabase data to match our Client interface
-        return clientsData.map((client) => {
-          try {
-            // Find bookings for this client
-            const clientBookings =
-              bookingsData?.filter(
-                (booking) => booking.client_id === client.id
-              ) || [];
-
-            // Ensure all required fields exist
-            return {
-              id:
-                client.id ||
-                `unknown-${Math.random().toString(36).substr(2, 9)}`,
-              fullName:
-                `${client.first_name || ""} ${client.last_name || ""}`.trim() ||
-                "Unknown Client",
-              email: client.email || "",
-              phone: client.phone || "",
-              idCardNumber: client.id_card_number || "",
-              paymentMethod:
-                (client.payment_method as "cash" | "card" | "site") || "cash",
-              avatar: client.avatar_url || "",
-              bookings: clientBookings.length,
-              spent: clientBookings.reduce(
-                (sum, booking) => sum + (Number(booking.amount) || 0),
-                0
-              ),
-              status: (client.status as "active" | "inactive") || "active",
-              userId: client.user_id,
-            };
-          } catch (err) {
-            console.error("Error processing client:", err, client);
-            // Return a minimal valid client object if we can't process this one properly
-            return {
-              id:
-                client.id || `error-${Math.random().toString(36).substr(2, 9)}`,
-              fullName: "Error Processing Client",
-              email: "",
-              phone: "",
-              idCardNumber: "",
-              paymentMethod: "cash" as const,
-              avatar: "",
-              bookings: 0,
-              spent: 0,
-              status: "inactive" as const,
-              userId: null,
-            };
-          }
-        });
-      } catch (error) {
-        console.error("Error fetching clients:", error);
-        toast.error("Failed to load clients");
-        return []; // Return empty array on error
+      // Ensure we have a valid session before proceeding
+      const isAuthenticated = await ensureAuthenticated();
+      if (!isAuthenticated) {
+        console.error("Authentication failed, cannot fetch clients");
+        toast.error(
+          "Authentication error. Please try refreshing the page or login again."
+        );
+        setIsLoading(false);
+        return;
       }
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    refetchOnWindowFocus: false,
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-  });
+
+      // First get all clients
+      const { data: clientsData, error: clientsError } = await supabase
+        .from("clients")
+        .select("*");
+
+      console.log({ data: clientsData, error: clientsError });
+
+      if (clientsError) {
+        // Special handling for auth errors
+        if (
+          clientsError.code === "PGRST301" ||
+          clientsError.message.includes("JWT")
+        ) {
+          toast.error("Session expired. Please refresh the page.");
+          setIsLoading(false);
+          return;
+        }
+
+        throw clientsError;
+      }
+
+      if (!clientsData || clientsData.length === 0) {
+        console.log("No clients found in database");
+        setClients([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Then get bookings in a separate query
+      const { data: bookingsData, error: bookingsError } = await supabase
+        .from("bookings")
+        .select("*");
+
+      if (bookingsError) {
+        console.error("Error fetching bookings:", bookingsError);
+        // Continue with client data even if bookings fail
+      }
+
+      // Transform Supabase data to match our Client interface
+      const transformedClients = clientsData.map((client) => {
+        try {
+          // Find bookings for this client
+          const clientBookings =
+            bookingsData?.filter(
+              (booking) => booking.client_id === client.id
+            ) || [];
+
+          // Ensure all required fields exist
+          return {
+            id:
+              client.id ||
+              `unknown-${Math.random().toString(36).substr(2, 9)}`,
+            fullName:
+              `${client.first_name || ""} ${client.last_name || ""}`.trim() ||
+              "Unknown Client",
+            email: client.email || "",
+            phone: client.phone || "",
+            idCardNumber: client.id_card_number || "",
+            paymentMethod:
+              (client.payment_method as "cash" | "card" | "site") || "cash",
+            avatar: client.avatar_url || "",
+            bookings: clientBookings.length,
+            spent: clientBookings.reduce(
+              (sum, booking) => sum + (Number(booking.amount) || 0),
+              0
+            ),
+            status: (client.status as "active" | "inactive") || "active",
+            userId: client.user_id,
+          };
+        } catch (err) {
+          console.error("Error processing client:", err, client);
+          // Return a minimal valid client object if we can't process this one properly
+          return {
+            id:
+              client.id || `error-${Math.random().toString(36).substr(2, 9)}`,
+            fullName: "Error Processing Client",
+            email: "",
+            phone: "",
+            idCardNumber: "",
+            paymentMethod: "cash" as const,
+            avatar: "",
+            bookings: 0,
+            spent: 0,
+            status: "inactive" as const,
+            userId: null,
+          };
+        }
+      });
+
+      setClients(transformedClients);
+      toast.success("Clients mis à jour avec succès");
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      toast.error("Erreur lors du chargement des clients");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Charger les clients au montage du composant
+  useEffect(() => {
+    fetchClients();
+  }, []);
 
   // Create or update client mutation
   const { mutate: saveClient, isPending: isSaving } = useMutation({
@@ -272,8 +279,8 @@ export const Clients = () => {
     },
     onSuccess: (data) => {
       console.log("Client saved successfully:", data);
-      // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      // Refresh clients data after successful save
+      fetchClients();
       setIsModalOpen(false);
     },
     onError: (error) => {
@@ -311,7 +318,6 @@ export const Clients = () => {
     setIsModalOpen(false);
   };
 
-  console.log({ clients });
   // Filter clients based on search term and status
   const filteredClients = React.useMemo(() => {
     // If clients is null, undefined, or empty, return empty array
@@ -351,8 +357,6 @@ export const Clients = () => {
       return clients;
     }
   }, [clients, searchTerm, statusFilter]);
-
-  console.log({ filteredClients });
 
   React.useEffect(() => {
     if (clients && clients.length > 0) {
@@ -394,36 +398,19 @@ export const Clients = () => {
     }
   }, [clients, filteredClients, searchTerm, statusFilter]);
 
-  // Add effect to handle empty data detection
-  React.useEffect(() => {
-    if (!isLoading && clients && clients.length === 0) {
-      // If we have no clients but we're not in loading state, this might be an auth issue
-      console.log(
-        "Empty clients array detected when not loading, might be auth issue"
-      );
-
-      // Check if we can manually refresh the auth and retry
-      const retryFetch = async () => {
-        const isAuthenticated = await ensureAuthenticated();
-        if (isAuthenticated) {
-          console.log("Authentication renewed, retrying clients fetch");
-          setTimeout(() => {
-            queryClient.invalidateQueries({ queryKey: ["clients"] });
-          }, 1000);
-        } else {
-          console.error("Failed to authenticate after retry");
-        }
-      };
-
-      retryFetch();
-    }
-  }, [clients, isLoading, queryClient]);
-
   return (
     <div className="clients-page">
       <div className="clients-header">
         <h1>{t("clients.clientManagement")}</h1>
         <div className="clients-actions">
+          <button
+            className="btn btn-secondary mr-2"
+            onClick={fetchClients}
+            disabled={isLoading}
+          >
+            <RefreshCw size={16} className={isLoading ? "spinning" : ""} />
+            <span>{isLoading ? "Chargement..." : "Actualiser"}</span>
+          </button>
           <button
             className="btn btn-primary"
             onClick={() => setIsModalOpen(true)}
