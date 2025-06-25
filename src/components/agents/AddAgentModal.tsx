@@ -18,7 +18,7 @@ export interface AgentFormData {
   role: string;
 }
 
-const roleOptions = ["agent", "commerçant","site"];
+const roleOptions = ["agent", "commerçant"];
 
 export const AddAgentModal = ({
   isOpen,
