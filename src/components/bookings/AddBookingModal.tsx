@@ -512,7 +512,7 @@ export const AddBookingModal = ({
 
               <div className="form-group">
                 <label className="form-label" htmlFor="commission">
-                  Commission Amount (dh)
+                  Commission Amount ($)
                 </label>
                 <input
                   type="number"
