@@ -249,6 +249,8 @@
   border: none;
   cursor: pointer;
   transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
 }
 
 .action-btn.view {
@@ -267,6 +269,15 @@
 
 .action-btn.edit:hover {
   background-color: rgba(237, 137, 54, 0.3);
+}
+
+.action-btn.delete {
+  background-color: rgba(245, 101, 101, 0.2);
+  color: var(--error);
+}
+
+.action-btn.delete:hover {
+  background-color: rgba(245, 101, 101, 0.3);
 }
 
 .pagination {
@@ -512,4 +523,8 @@
   100% {
     transform: rotate(360deg);
   }
+}
+
+.mr-1 {
+  margin-right: 0.25rem;
 }

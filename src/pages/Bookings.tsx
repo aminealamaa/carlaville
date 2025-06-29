@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import {
   AddBookingModal,
@@ -262,6 +263,7 @@ export const Bookings = () => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Timer to update the current time every second for more accuracy
   useEffect(() => {
@@ -530,6 +532,45 @@ export const Bookings = () => {
     },
   });
 
+  // Delete booking mutation
+  const { mutate: deleteBooking } = useMutation({
+    mutationFn: async (bookingId: string) => {
+      try {
+        setIsDeleting(true);
+        const toastId = toast.loading("Suppression de la réservation...");
+
+        const { error } = await supabase
+          .from("bookings")
+          .delete()
+          .eq("id", bookingId);
+
+        if (error) {
+          toast.dismiss(toastId);
+          toast.error(`Échec de la suppression: ${error.message}`);
+          throw error;
+        }
+
+        toast.dismiss(toastId);
+        toast.success("Réservation supprimée avec succès");
+        return { success: true };
+      } catch (error) {
+        console.error("Error deleting booking:", error);
+        const errorMessage = 
+          error instanceof Error 
+            ? error.message 
+            : "Une erreur s'est produite lors de la suppression";
+        toast.error(errorMessage);
+        throw error;
+      } finally {
+        setIsDeleting(false);
+      }
+    },
+    onSuccess: () => {
+      // Refetch bookings after successful deletion
+      fetchBookings();
+    }
+  });
+
   const handleAddBooking = async (formData: BookingFormData) => {
     saveBooking(formData);
   };
@@ -548,6 +589,24 @@ export const Bookings = () => {
 
     setSelectedBooking(booking);
     setIsModalOpen(true);
+  };
+
+  const handleDeleteClick = (booking: Booking) => {
+    // Check if the user has permission to delete this booking
+    const canDelete =
+      isAdmin(user) ||
+      user?.id === booking.userId ||
+      user?.id === booking.agentId;
+
+    if (!canDelete) {
+      toast.error("Vous n'avez pas la permission de supprimer cette réservation");
+      return;
+    }
+
+    // Show confirmation dialog
+    if (window.confirm(t("bookings.confirmDelete"))) {
+      deleteBooking(booking.id);
+    }
   };
 
   const handleCloseModal = () => {
@@ -1031,16 +1090,23 @@ export const Bookings = () => {
                         {(isAdmin(user) ||
                           user?.id === booking.userId ||
                           user?.id === booking.agentId) && (
-                          <button
-                            className="action-btn edit"
-                            onClick={() => handleEditClick(booking)}
-                          >
-                            {t("bookings.edit")}
-                          </button>
+                          <>
+                            <button
+                              className="action-btn edit"
+                              onClick={() => handleEditClick(booking)}
+                            >
+                              {t("bookings.edit")}
+                            </button>
+                            <button
+                              className="action-btn delete"
+                              onClick={() => handleDeleteClick(booking)}
+                              disabled={isDeleting}
+                            >
+                              <Trash2 size={14} className="mr-1" />
+                              Delete
+                            </button>
+                          </>
                         )}
-                        <button className="action-btn view">
-                          {t("bookings.view")}
-                        </button>
                       </div>
                     </td>
                   </tr>

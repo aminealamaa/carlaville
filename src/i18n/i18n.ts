@@ -138,6 +138,7 @@ const enTranslations = {
     view: "View",
     unknown: "Unknown",
     remaining: "remaining",
+    confirmDelete: "Are you sure you want to delete this booking?",
   },
   bookingDialog: {
     addBooking: "Add Booking",
@@ -553,6 +554,7 @@ const frTranslations = {
     view: "Voir",
     unknown: "Inconnu",
     remaining: "restant",
+    confirmDelete: "Êtes-vous sûr de vouloir supprimer cette réservation ?",
   },
   bookingDialog: {
     addBooking: "Ajouter une réservation",
